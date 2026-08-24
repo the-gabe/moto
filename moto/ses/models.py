@@ -883,6 +883,31 @@ class SESBackend(BaseBackend):
     def list_templates(self) -> list[dict[str, str]]:
         return list(self.templates.values())
 
+    @staticmethod
+    def _render_parts(
+        template: dict[str, Any], template_data: Any
+    ) -> tuple[str, str, str]:
+        return (
+            parse_template(str(template["subject_part"]), template_data),
+            parse_template(str(template["text_part"]), template_data),
+            parse_template(str(template["html_part"]), template_data),
+        )
+
+    def _render_template_parts(
+        self, template_name: str, template_data: str
+    ) -> tuple[str, str, str]:
+        """(subject, text, html) for a stored template, as SendTemplatedEmail renders it."""
+        template = self.templates.get(template_name)
+        if not template:
+            raise TemplateDoesNotExist("Invalid Template Name.")
+        try:
+            data = json.loads(template_data)
+        except ValueError:
+            raise InvalidRenderingParameterException(
+                "Template rendering data is invalid"
+            )
+        return self._render_parts(template, data)
+
     def render_template(self, render_data: dict[str, Any]) -> str:
         template_name = render_data.get("name", "")
         template = self.templates.get(template_name, None)
@@ -897,13 +922,7 @@ class SESBackend(BaseBackend):
                 "Template rendering data is invalid"
             )
 
-        subject_part = template["subject_part"]
-        text_part = template["text_part"]
-        html_part = template["html_part"]
-
-        subject_part = parse_template(str(subject_part), template_data)
-        text_part = parse_template(str(text_part), template_data)
-        html_part = parse_template(str(html_part), template_data)
+        subject_part, text_part, html_part = self._render_parts(template, template_data)
 
         email_obj = MIMEMultipart("alternative")
 
