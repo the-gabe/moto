@@ -8,7 +8,7 @@ import boto3
 import pytest
 from botocore.exceptions import ClientError
 
-from moto import mock_aws
+from moto import mock_aws, settings
 from tests import aws_verified
 from tests.test_awslambda.utilities import get_role_name
 
@@ -387,6 +387,35 @@ def test_send_html_email():
     send_quota = conn.get_send_quota()
     sent_count = int(send_quota["SentLast24Hours"])
     assert sent_count == 1
+
+
+@mock_aws
+def test_send_email_keeps_both_body_parts():
+    """A message with both a Text and an Html body retains both parts."""
+    conn = boto3.client("ses", region_name="us-east-1")
+    conn.verify_email_identity(EmailAddress="test@example.com")
+
+    conn.send_email(
+        Source="test@example.com",
+        Destination={"ToAddresses": ["test_to@example.com"]},
+        Message={
+            "Subject": {"Data": "test subject"},
+            "Body": {
+                "Text": {"Data": "the text part"},
+                "Html": {"Data": "<p>the html part</p>"},
+            },
+        },
+    )
+
+    if not settings.TEST_SERVER_MODE:
+        from moto.core import DEFAULT_ACCOUNT_ID
+        from moto.ses.models import ses_backends
+
+        msg = ses_backends[DEFAULT_ACCOUNT_ID]["us-east-1"].sent_messages[0]
+        assert msg.body_text == "the text part"
+        assert msg.body_html == "<p>the html part</p>"
+        # `body` keeps its historical meaning: HTML when present.
+        assert msg.body == "<p>the html part</p>"
 
 
 @mock_aws

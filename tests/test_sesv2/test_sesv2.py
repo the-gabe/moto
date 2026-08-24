@@ -93,6 +93,34 @@ def test_send_html_email(ses_v1):
 
 
 @mock_aws
+def test_send_email_keeps_both_body_parts(ses_v1):
+    """Simple content with both a Text and an Html body retains both parts."""
+    conn = boto3.client("sesv2", region_name="us-east-1")
+    conn.create_email_identity(EmailIdentity="test@example.com")
+
+    conn.send_email(
+        FromEmailAddress="test@example.com",
+        Destination={"ToAddresses": ["test_to@example.com"]},
+        Content={
+            "Simple": {
+                "Subject": {"Data": "test subject"},
+                "Body": {
+                    "Text": {"Data": "the text part"},
+                    "Html": {"Data": "<p>the html part</p>"},
+                },
+            },
+        },
+    )
+
+    if not settings.TEST_SERVER_MODE:
+        backend = ses_backends[DEFAULT_ACCOUNT_ID]["us-east-1"]
+        msg: Message = backend.sent_messages[0]
+        assert msg.body_text == "the text part"
+        assert msg.body_html == "<p>the html part</p>"
+        assert msg.body == "<p>the html part</p>"
+
+
+@mock_aws
 def test_send_raw_email(ses_v1):
     # Setup
     conn = boto3.client("sesv2", region_name="us-east-1")

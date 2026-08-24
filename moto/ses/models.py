@@ -79,12 +79,18 @@ class Message(BaseModel):
         subject: str,
         body: str,
         destinations: dict[str, list[str]],
+        body_text: str | None = None,
+        body_html: str | None = None,
     ):
         self.id = message_id
         self.source = source
         self.subject = subject
         self.body = body
         self.destinations = destinations
+        # The individual parts of Message.Body, when the caller supplied them. `body` is
+        # the historical single value (HTML if present, else text) and is kept as-is.
+        self.body_text = body_text
+        self.body_html = body_html
 
 
 class TemplateMessage(BaseModel):
@@ -474,7 +480,13 @@ class SESBackend(BaseBackend):
             del self.email_identities[identity]
 
     def send_email(
-        self, source: str, subject: str, body: str, destinations: dict[str, list[str]]
+        self,
+        source: str,
+        subject: str,
+        body: str,
+        destinations: dict[str, list[str]],
+        body_text: str | None = None,
+        body_html: str | None = None,
     ) -> Message:
         recipient_count = sum(map(len, destinations.values()))
         if recipient_count > RECIPIENT_LIMIT:
@@ -493,7 +505,9 @@ class SESBackend(BaseBackend):
         self.__process_sns_feedback__(source, destinations)
 
         message_id = get_random_message_id()
-        message = Message(message_id, source, subject, body, destinations)
+        message = Message(
+            message_id, source, subject, body, destinations, body_text, body_html
+        )
         self.sent_messages.append(message)
         self.sent_message_count += recipient_count
         return message
