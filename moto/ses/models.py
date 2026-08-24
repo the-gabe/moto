@@ -704,6 +704,26 @@ class SESBackend(BaseBackend):
         self.sent_messages.append(raw_message)
         return raw_message
 
+    # Headers Amazon SES sets itself, and therefore refuses as custom headers on a
+    # Simple or Templated v2 send. See "Amazon SES header fields" in the developer guide.
+    _DISALLOWED_CUSTOM_HEADERS = frozenset(
+        h.lower()
+        for h in (
+            "BCC",
+            "CC",
+            "Content-Disposition",
+            "Content-Type",
+            "Date",
+            "From",
+            "Message-ID",
+            "MIME-Version",
+            "Reply-To",
+            "Return-Path",
+            "Subject",
+            "To",
+        )
+    )
+
     def get_send_quota(self) -> SESQuota:
         return SESQuota(self.sent_message_count)
 

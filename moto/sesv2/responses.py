@@ -4,6 +4,8 @@ import base64
 import json
 
 from moto.core.responses import BaseResponse
+from moto.ses.exceptions import BadRequestException
+from moto.ses.models import SESBackend
 
 from .models import SESV2Backend, sesv2_backends
 
@@ -54,6 +56,15 @@ class SESV2Response(BaseResponse):
                 )
                 if value
             }
+            # Content.Simple.Headers: custom headers. SES refuses the ones it sets
+            # itself (API_SendEmail v2 / "Amazon SES header fields").
+            headers = [(h["Name"], h["Value"]) for h in simple.get("Headers", [])]
+            for name, _ in headers:
+                if name.lower() in SESBackend._DISALLOWED_CUSTOM_HEADERS:
+                    raise BadRequestException(
+                        f"Header '{name}' is set by Amazon SES and cannot be specified "
+                        "as a custom header."
+                    )
             message = self.sesv2_backend.send_email(  # type: ignore
                 source=from_email_address,
                 destinations=destination,
@@ -64,6 +75,7 @@ class SESV2Response(BaseResponse):
                 reply_to=params.get("ReplyToAddresses"),
                 return_path=params.get("FeedbackForwardingEmailAddress"),
                 charsets=charsets,
+                headers=headers,
             )
         elif "Template" in content:
             raise NotImplementedError("Template functionality not ready")

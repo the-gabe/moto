@@ -148,6 +148,50 @@ def test_send_email_retains_reply_to_and_feedback_address(ses_v1):
 
 
 @mock_aws
+def test_send_email_with_custom_headers(ses_v1):
+    conn = boto3.client("sesv2", region_name="us-east-1")
+    conn.create_email_identity(EmailIdentity="test@example.com")
+
+    conn.send_email(
+        FromEmailAddress="test@example.com",
+        Destination={"ToAddresses": ["test_to@example.com"]},
+        Content={
+            "Simple": {
+                "Subject": {"Data": "test subject"},
+                "Body": {"Text": {"Data": "test body"}},
+                "Headers": [{"Name": "X-Campaign", "Value": "spring"}],
+            },
+        },
+    )
+
+    if not settings.TEST_SERVER_MODE:
+        backend = ses_backends[DEFAULT_ACCOUNT_ID]["us-east-1"]
+        msg: Message = backend.sent_messages[0]
+        assert msg.headers == [("X-Campaign", "spring")]
+
+
+@mock_aws
+@pytest.mark.parametrize("header", ["To", "from", "Date", "Message-ID", "Subject"])
+def test_send_email_rejects_headers_that_ses_sets_itself(ses_v1, header):
+    conn = boto3.client("sesv2", region_name="us-east-1")
+    conn.create_email_identity(EmailIdentity="test@example.com")
+
+    with pytest.raises(ClientError) as e:
+        conn.send_email(
+            FromEmailAddress="test@example.com",
+            Destination={"ToAddresses": ["test_to@example.com"]},
+            Content={
+                "Simple": {
+                    "Subject": {"Data": "test subject"},
+                    "Body": {"Text": {"Data": "test body"}},
+                    "Headers": [{"Name": header, "Value": "x"}],
+                },
+            },
+        )
+    assert e.value.response["Error"]["Code"] == "BadRequestException"
+
+
+@mock_aws
 def test_send_raw_email(ses_v1):
     # Setup
     conn = boto3.client("sesv2", region_name="us-east-1")
