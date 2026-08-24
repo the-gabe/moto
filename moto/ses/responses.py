@@ -68,7 +68,7 @@ class EmailResponse(BaseResponse):
         body_text = self._get_param("Message.Body.Text.Data")
         body_html = self._get_param("Message.Body.Html.Data")
         # `body` keeps its historical meaning (HTML if present, else text); the two parts
-        # travel separately so both survive into the stored message.
+        # travel separately so a relay can rebuild the multipart message SES would send.
         body = body_html if body_html is not None else body_text
         source = self._get_param("Source")
         subject = self._get_param("Message.Subject.Data")
