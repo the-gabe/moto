@@ -81,6 +81,10 @@ class Message(BaseModel):
         destinations: dict[str, list[str]],
         body_text: str | None = None,
         body_html: str | None = None,
+        reply_to: list[str] | None = None,
+        return_path: str | None = None,
+        charsets: dict[str, str] | None = None,
+        headers: list[tuple[str, str]] | None = None,
     ):
         self.id = message_id
         self.source = source
@@ -91,6 +95,12 @@ class Message(BaseModel):
         # the historical single value (HTML if present, else text) and is kept as-is.
         self.body_text = body_text
         self.body_html = body_html
+        # ReplyToAddresses -> Reply-To header; ReturnPath (v2: FeedbackForwardingEmailAddress)
+        # -> envelope sender; Charset of Subject/Text/Html; SESv2 Content.Simple.Headers.
+        self.reply_to = reply_to or []
+        self.return_path = return_path
+        self.charsets = charsets or {}
+        self.headers = headers or []
 
 
 class TemplateMessage(BaseModel):
@@ -101,12 +111,16 @@ class TemplateMessage(BaseModel):
         template: str,
         template_data: str,
         destinations: Any,
+        reply_to: list[str] | None = None,
+        return_path: str | None = None,
     ):
         self.id = message_id
         self.source = source
         self.template = template
         self.template_data = template_data
         self.destinations = destinations
+        self.reply_to = reply_to or []
+        self.return_path = return_path
 
 
 class BulkTemplateMessage(BaseModel):
@@ -487,6 +501,10 @@ class SESBackend(BaseBackend):
         destinations: dict[str, list[str]],
         body_text: str | None = None,
         body_html: str | None = None,
+        reply_to: list[str] | None = None,
+        return_path: str | None = None,
+        charsets: dict[str, str] | None = None,
+        headers: list[tuple[str, str]] | None = None,
     ) -> Message:
         recipient_count = sum(map(len, destinations.values()))
         if recipient_count > RECIPIENT_LIMIT:
@@ -506,7 +524,17 @@ class SESBackend(BaseBackend):
 
         message_id = get_random_message_id()
         message = Message(
-            message_id, source, subject, body, destinations, body_text, body_html
+            message_id,
+            source,
+            subject,
+            body,
+            destinations,
+            body_text,
+            body_html,
+            reply_to=reply_to,
+            return_path=return_path,
+            charsets=charsets,
+            headers=headers,
         )
         self.sent_messages.append(message)
         self.sent_message_count += recipient_count
@@ -554,6 +582,8 @@ class SESBackend(BaseBackend):
         template: str,
         template_data: str,
         destinations: dict[str, list[str]],
+        reply_to: list[str] | None = None,
+        return_path: str | None = None,
     ) -> TemplateMessage:
         recipient_count = sum(map(len, destinations.values()))
         if recipient_count > RECIPIENT_LIMIT:
@@ -576,7 +606,13 @@ class SESBackend(BaseBackend):
 
         message_id = get_random_message_id()
         message = TemplateMessage(
-            message_id, source, template, template_data, destinations
+            message_id,
+            source,
+            template,
+            template_data,
+            destinations,
+            reply_to=reply_to,
+            return_path=return_path,
         )
         self.sent_messages.append(message)
         self.sent_message_count += recipient_count

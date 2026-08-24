@@ -121,6 +121,33 @@ def test_send_email_keeps_both_body_parts(ses_v1):
 
 
 @mock_aws
+def test_send_email_retains_reply_to_and_feedback_address(ses_v1):
+    conn = boto3.client("sesv2", region_name="us-east-1")
+    conn.create_email_identity(EmailIdentity="test@example.com")
+
+    conn.send_email(
+        FromEmailAddress="test@example.com",
+        Destination={"ToAddresses": ["test_to@example.com"]},
+        ReplyToAddresses=["reply@example.com"],
+        FeedbackForwardingEmailAddress="bounces@example.com",
+        Content={
+            "Simple": {
+                "Subject": {"Data": "test subject", "Charset": "UTF-8"},
+                "Body": {"Text": {"Data": "test body"}},
+            },
+        },
+    )
+
+    if not settings.TEST_SERVER_MODE:
+        backend = ses_backends[DEFAULT_ACCOUNT_ID]["us-east-1"]
+        msg: Message = backend.sent_messages[0]
+        assert msg.reply_to == ["reply@example.com"]
+        # FeedbackForwardingEmailAddress is v2's spelling of ReturnPath.
+        assert msg.return_path == "bounces@example.com"
+        assert msg.charsets == {"subject": "UTF-8"}
+
+
+@mock_aws
 def test_send_raw_email(ses_v1):
     # Setup
     conn = boto3.client("sesv2", region_name="us-east-1")

@@ -419,6 +419,66 @@ def test_send_email_keeps_both_body_parts():
 
 
 @mock_aws
+def test_send_email_retains_reply_to_return_path_and_charsets():
+    """ReplyToAddresses, ReturnPath and the per-part Charset are recorded."""
+    conn = boto3.client("ses", region_name="us-east-1")
+    conn.verify_email_identity(EmailAddress="test@example.com")
+    conn.verify_email_identity(EmailAddress="bounces@example.com")
+
+    conn.send_email(
+        Source="test@example.com",
+        Destination={"ToAddresses": ["test_to@example.com"]},
+        ReplyToAddresses=["reply1@example.com", "reply2@example.com"],
+        ReturnPath="bounces@example.com",
+        Message={
+            "Subject": {"Data": "test subject", "Charset": "UTF-8"},
+            "Body": {"Text": {"Data": "test body", "Charset": "ISO-8859-1"}},
+        },
+    )
+
+    if not settings.TEST_SERVER_MODE:
+        from moto.core import DEFAULT_ACCOUNT_ID
+        from moto.ses.models import ses_backends
+
+        msg = ses_backends[DEFAULT_ACCOUNT_ID]["us-east-1"].sent_messages[0]
+        assert msg.reply_to == ["reply1@example.com", "reply2@example.com"]
+        assert msg.return_path == "bounces@example.com"
+        assert msg.charsets == {"subject": "UTF-8", "text": "ISO-8859-1"}
+
+
+@mock_aws
+def test_send_templated_email_retains_reply_to_and_return_path():
+    conn = boto3.client("ses", region_name="us-east-1")
+    conn.verify_email_identity(EmailAddress="test@example.com")
+    conn.verify_email_identity(EmailAddress="bounces@example.com")
+    conn.create_template(
+        Template={
+            "TemplateName": "welcome",
+            "SubjectPart": "Hello {{name}}",
+            "TextPart": "Hi {{name}}",
+            "HtmlPart": "<p>Hi {{name}}</p>",
+        }
+    )
+
+    conn.send_templated_email(
+        Source="test@example.com",
+        Destination={"ToAddresses": ["test_to@example.com"]},
+        ReplyToAddresses=["reply@example.com"],
+        ReturnPath="bounces@example.com",
+        Template="welcome",
+        TemplateData='{"name": "Ada"}',
+    )
+
+    if not settings.TEST_SERVER_MODE:
+        from moto.core import DEFAULT_ACCOUNT_ID
+        from moto.ses.models import ses_backends
+
+        msg = ses_backends[DEFAULT_ACCOUNT_ID]["us-east-1"].sent_messages[0]
+        assert msg.reply_to == ["reply@example.com"]
+        assert msg.return_path == "bounces@example.com"
+
+
+@mock_aws
 def test_send_raw_email():
     conn = boto3.client("ses", region_name="us-east-1")
 
