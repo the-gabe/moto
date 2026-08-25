@@ -65,14 +65,34 @@ class EmailResponse(BaseResponse):
         return EmptyResult()
 
     def send_email(self) -> ActionResult:
-        bodydatakey = "Message.Body.Text.Data"
-        if "Message.Body.Html.Data" in self.querystring:
-            bodydatakey = "Message.Body.Html.Data"
-        body = self._get_param(bodydatakey)
+        body_text = self._get_param("Message.Body.Text.Data")
+        body_html = self._get_param("Message.Body.Html.Data")
+        # `body` keeps its historical meaning (HTML if present, else text); the two parts
+        # travel separately so a relay can rebuild the multipart message SES would send.
+        body = body_html if body_html is not None else body_text
         source = self._get_param("Source")
         subject = self._get_param("Message.Subject.Data")
         destinations = self._get_param("Destination", {})
-        message = self.backend.send_email(source, subject, body, destinations)
+        charsets = {
+            key: value
+            for key, value in (
+                ("subject", self._get_param("Message.Subject.Charset")),
+                ("text", self._get_param("Message.Body.Text.Charset")),
+                ("html", self._get_param("Message.Body.Html.Charset")),
+            )
+            if value
+        }
+        message = self.backend.send_email(
+            source,
+            subject,
+            body,
+            destinations,
+            body_text=body_text,
+            body_html=body_html,
+            reply_to=self._get_param("ReplyToAddresses", []),
+            return_path=self._get_param("ReturnPath"),
+            charsets=charsets,
+        )
         result = {"MessageId": message.id}
         return ActionResult(result)
 
@@ -82,7 +102,12 @@ class EmailResponse(BaseResponse):
         template_data = self._get_param("TemplateData")
         destinations = self._get_param("Destination", {})
         message = self.backend.send_templated_email(
-            source, template, template_data, destinations
+            source,
+            template,
+            template_data,
+            destinations,
+            reply_to=self._get_param("ReplyToAddresses", []),
+            return_path=self._get_param("ReturnPath"),
         )
         result = {"MessageId": message.id}
         return ActionResult(result)

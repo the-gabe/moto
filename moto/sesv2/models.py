@@ -123,13 +123,29 @@ class SESV2Backend(BaseBackend, TaggableResourcesMixin):
         return
 
     def send_email(
-        self, source: str, destinations: dict[str, list[str]], subject: str, body: str
+        self,
+        source: str,
+        destinations: dict[str, list[str]],
+        subject: str,
+        body: str,
+        body_text: str | None = None,
+        body_html: str | None = None,
+        reply_to: list[str] | None = None,
+        return_path: str | None = None,
+        charsets: dict[str, str] | None = None,
+        headers: list[tuple[str, str]] | None = None,
     ) -> Message:
         message = self.core_backend.send_email(
             source=source,
             destinations=destinations,
             subject=subject,
             body=body,
+            body_text=body_text,
+            body_html=body_html,
+            reply_to=reply_to,
+            return_path=return_path,
+            charsets=charsets,
+            headers=headers,
         )
         return message
 
