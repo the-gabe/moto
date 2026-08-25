@@ -1058,7 +1058,7 @@ class LambdaFunction(CloudFormationModel, DockerModel):
                     language, version = self.run_time[:idx], self.run_time[idx:]  # type: ignore[index]
 
                     image_repos = {  # dict maintains insertion order
-                        settings.moto_lambda_image(): None,
+                        settings.moto_lambda_image(self.run_time): None,
                         f"ghcr.io/shogo82148/lambda-{language}:{version}": None,
                         "mlupin/docker-lambda": None,
                         "lambci/lambda": None,

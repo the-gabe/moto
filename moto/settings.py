@@ -125,7 +125,27 @@ def moto_server_host() -> str:
         return "http://host.docker.internal"
 
 
-def moto_lambda_image() -> str | None:
+def moto_lambda_image(runtime: str | None = None) -> str | None:
+    """
+    The Docker image to execute a Lambda with, or None to fall back to moto's own list.
+
+    MOTO_DOCKER_LAMBDA_IMAGE applies to every runtime, which is fine when a mock only uses
+    one. A mock that uses several — python3.12 and nodejs22.x in the same moto — needs one
+    image per runtime, so a runtime-suffixed variant is checked first:
+
+        MOTO_DOCKER_LAMBDA_IMAGE_PYTHON3_12=my-registry/lambda-python:3.12
+        MOTO_DOCKER_LAMBDA_IMAGE_NODEJS22_X=my-registry/lambda-nodejs:22.x
+
+    The suffix is the runtime, uppercased, with '.' replaced by '_' (environment variable
+    names cannot contain a dot). Without a match the plain variable is used, exactly as
+    before, so existing configurations are unaffected.
+    """
+    if runtime:
+        specific = os.environ.get(
+            f"MOTO_DOCKER_LAMBDA_IMAGE_{runtime.upper().replace('.', '_')}"
+        )
+        if specific:
+            return specific
     return os.environ.get("MOTO_DOCKER_LAMBDA_IMAGE")
 
 
